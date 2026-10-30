@@ -1,4 +1,3 @@
-
 <!doctype html>
 <html lang="en">
 <head>
@@ -24,7 +23,6 @@
       <button class="icon-btn" id="new-chat" title="New chat" aria-label="New chat">＋</button>
     </div>
   </header>
-
   <nav class="tabs" aria-label="Main navigation">
     <button class="tab active" data-tab="dashboard">⌂ Dashboard</button>
     <button class="tab" data-tab="chat">▤ AI Chat</button>
@@ -32,7 +30,6 @@
     <button class="tab" data-tab="compare">▦ Compare</button>
     <button class="tab" data-tab="tools">✧ AI tools</button>
   </nav>
-
   <main>
     <section id="view-dashboard" class="view section-view dashboard-view">
       <div class="dashboard-hero">
@@ -44,8 +41,7 @@
         </div>
         <div class="dashboard-symbol">✳</div>
       </div>
-
-      <div class="dashboard-stats">
+     <div class="dashboard-stats">
         <article class="stat-card">
           <span>CONNECTED MODELS</span>
           <strong id="dashboard-model-count">—</strong>
@@ -62,7 +58,6 @@
           <small>Chat and creative workflows</small>
         </article>
       </div>
-
       <div class="dashboard-section">
         <div class="dashboard-section-head">
           <div>
@@ -93,7 +88,6 @@
           </button>
         </div>
       </div>
-
       <div class="dashboard-bottom">
         <article class="dashboard-panel">
           <div class="eyebrow">SYSTEM STATUS</div>
@@ -111,8 +105,16 @@
         </article>
       </div>
     </section>
-
     <section id="view-chat" class="view chat-view hidden">
+      <aside class="history-panel">
+  <div class="history-heading">
+    <h3>Conversation History</h3>
+    <button type="button" id="clear-history">Clear</button>
+  </div>
+  <div id="history-list">
+    <p>Your saved conversations will appear here.</p>
+  </div>
+</aside>
       <div class="hero">
         <div class="eyebrow"><span>✧</span> YOUR AI, ONE WORKSPACE</div>
         <h1>Big ideas start<br><span>with one prompt.</span></h1>
@@ -157,7 +159,6 @@
       </div>
       <p class="disclaimer">AI responses can be inaccurate. Review important information before relying on it.</p>
     </section>
-
     <section id="view-discover" class="view section-view hidden">
       <div class="section-head">
         <div>
@@ -169,7 +170,6 @@
       </div>
       <div id="model-grid" class="model-grid"></div>
     </section>
-
     <section id="view-compare" class="view section-view hidden">
       <div class="eyebrow">MODEL COMPARISON</div>
       <h2>Choose by the task, not the hype.</h2>
@@ -186,7 +186,6 @@
         <div class="compare-row"><strong>Video models <small>Creative tools</small></strong><span>Motion, scenes, and short-form video</span><span class="status integration">Separate integration</span></div>
       </div>
     </section>
-
     <section id="view-tools" class="view section-view hidden">
       <div class="eyebrow">YOUR AI TOOLKIT</div>
       <h2>One workspace. Many ways to create.</h2>
