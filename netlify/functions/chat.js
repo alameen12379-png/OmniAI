@@ -58,8 +58,7 @@ exports.handler = async function (event) {
       },
       body: JSON.stringify({
         model: input.model,
-        messages: input.messages,
-        temperature: 0.7
+        messages: input.messages
       })
     });
 
