@@ -3,6 +3,7 @@ const state = {
   models: [],
   selected: '',
   messages: [],
+  currentConversationId: null,
   busy: false,
   modelLoading: true
 };
@@ -23,33 +24,159 @@ function status(el, available, text) {
   el.textContent = text;
 }
 
-function getRecentWorkspaces() {
+/* ==============================
+   CONVERSATION STORAGE
+============================== */
+
+function getConversations() {
   try {
-    return JSON.parse(localStorage.getItem('omniai-workspaces') || '[]');
+    return JSON.parse(
+      localStorage.getItem('omniai-conversations') || '[]'
+    );
   } catch {
     return [];
   }
 }
 
-function saveWorkspace(prompt) {
-  const items = getRecentWorkspaces();
-  items.unshift({
-    title: prompt.slice(0, 65),
-    date: new Date().toLocaleDateString()
-  });
-  localStorage.setItem('omniai-workspaces', JSON.stringify(items.slice(0, 5)));
+function saveCurrentConversation() {
+  if (!state.messages.length) return;
+
+  const conversations = getConversations();
+
+  const firstUserMessage = state.messages.find(
+    message => message.role === 'user'
+  );
+
+  if (!firstUserMessage) return;
+
+  if (!state.currentConversationId) {
+    state.currentConversationId =
+      Date.now().toString() + Math.random().toString(36).slice(2, 7);
+  }
+
+  const conversation = {
+    id: state.currentConversationId,
+    title: firstUserMessage.content.slice(0, 65),
+    date: new Date().toLocaleString(),
+    messages: state.messages
+  };
+
+  const existingIndex = conversations.findIndex(
+    item => item.id === state.currentConversationId
+  );
+
+  if (existingIndex >= 0) {
+    conversations[existingIndex] = conversation;
+  } else {
+    conversations.unshift(conversation);
+  }
+
+  conversations.sort(
+    (a, b) => Number(b.id.slice(0, 13)) - Number(a.id.slice(0, 13))
+  );
+
+  try {
+    localStorage.setItem(
+      'omniai-conversations',
+      JSON.stringify(conversations.slice(0, 30))
+    );
+  } catch (error) {
+    console.error('Could not save conversation:', error);
+  }
+
+  renderHistory();
   renderDashboard();
 }
 
+function renderHistory() {
+  const box = $('history-list');
+  if (!box) return;
+
+  const conversations = getConversations();
+
+  if (!conversations.length) {
+    box.innerHTML = '<p>Your saved conversations will appear here.</p>';
+    return;
+  }
+
+  box.innerHTML = conversations.map(item => `
+    <button
+      type="button"
+      class="history-item ${
+        item.id === state.currentConversationId ? 'active' : ''
+      }"
+      data-conversation="${esc(item.id)}"
+    >
+      <strong>${esc(item.title)}</strong>
+      <small>${esc(item.date)}</small>
+    </button>
+  `).join('');
+
+  box.querySelectorAll('[data-conversation]').forEach(button => {
+    button.addEventListener('click', () => {
+      openConversation(button.dataset.conversation);
+    });
+  });
+}
+
+function openConversation(id) {
+  const conversation = getConversations().find(
+    item => item.id === id
+  );
+
+  if (!conversation) return;
+
+  state.currentConversationId = conversation.id;
+  state.messages = conversation.messages || [];
+
+  $('messages').innerHTML = '';
+  $('chat-error').classList.add('hidden');
+  $('suggestions').classList.add('hidden');
+
+  state.messages.forEach(message => {
+    addMessage(
+      message.role,
+      message.content,
+      message.role === 'assistant' ? 'OmniAI' : undefined
+    );
+  });
+
+  renderHistory();
+  switchTab('chat');
+}
+
+function clearHistory() {
+  if (!confirm('Delete all saved conversations?')) return;
+
+  localStorage.removeItem('omniai-conversations');
+
+  state.messages = [];
+  state.currentConversationId = null;
+
+  $('messages').innerHTML = '';
+  $('chat-error').classList.add('hidden');
+  $('suggestions').classList.remove('hidden');
+
+  renderHistory();
+  renderDashboard();
+}
+
+/* ==============================
+   DASHBOARD
+============================== */
+
 function renderDashboard() {
-  const items = getRecentWorkspaces();
+  const items = getConversations();
 
   $('dashboard-model-count').textContent = state.models.length;
   $('dashboard-work-count').textContent = items.length;
 
   $('recent-workspaces').innerHTML = items.length
-    ? items.map(item => `
-        <p>✳ ${esc(item.title)} <small>· ${esc(item.date)}</small></p>
+    ? items.slice(0, 5).map(item => `
+        <p>
+          ✳ ${esc(item.title)}
+          <small>· ${esc(item.date)}</small>
+        </p>
       `).join('')
     : '<p>Your recent conversations will appear here.</p>';
 
@@ -57,6 +184,10 @@ function renderDashboard() {
     ? `${state.models.length} connected model(s) detected. Your provider gateway is responding.`
     : 'No connected models detected. Check your provider configuration.';
 }
+
+/* ==============================
+   LOAD AI MODELS
+============================== */
 
 async function loadModels() {
   try {
@@ -85,7 +216,9 @@ async function loadModels() {
       state.models.find(m => m.id === state.selected)?.name ||
       'No model connected';
 
-    const g = state.models.find(m => /gpt.?6/i.test(m.id + ' ' + m.name));
+    const g = state.models.find(
+      m => /gpt.?6/i.test(m.id + ' ' + m.name)
+    );
 
     status($('gpt6-status'), !!g, g ? 'Connected' : 'Not connected');
     status($('compare-gpt6'), !!g, g ? 'Connected' : 'Not connected');
@@ -129,6 +262,10 @@ async function loadModels() {
   }
 }
 
+/* ==============================
+   MODEL OPTIONS
+============================== */
+
 function renderModelOptions() {
   const box = $('model-options');
 
@@ -161,6 +298,10 @@ function renderModelOptions() {
   $('send-btn').disabled = !state.selected || state.busy;
 }
 
+/* ==============================
+   DISCOVER MODELS
+============================== */
+
 function renderDiscover() {
   const q = ($('model-search')?.value || '').toLowerCase();
 
@@ -168,7 +309,9 @@ function renderDiscover() {
     (m.id + ' ' + m.name).toLowerCase().includes(q)
   );
 
-  const g = state.models.find(m => /gpt.?6/i.test(m.id + ' ' + m.name));
+  const g = state.models.find(
+    m => /gpt.?6/i.test(m.id + ' ' + m.name)
+  );
 
   let cards = `
     <article class="catalog-card featured">
@@ -232,8 +375,14 @@ function renderDiscover() {
   });
 }
 
+/* ==============================
+   COMPARE MODELS
+============================== */
+
 function renderCompare() {
-  const g = state.models.find(m => /gpt.?6/i.test(m.id + ' ' + m.name));
+  const g = state.models.find(
+    m => /gpt.?6/i.test(m.id + ' ' + m.name)
+  );
 
   $('compare-live-models').innerHTML = state.models.map(m => `
     <div class="compare-row">
@@ -247,6 +396,10 @@ function renderCompare() {
     status($('compare-gpt6'), true, 'Connected');
   }
 }
+
+/* ==============================
+   NAVIGATION
+============================== */
 
 function switchTab(tab) {
   document.querySelectorAll('.tab').forEach(b => {
@@ -276,6 +429,10 @@ document.querySelectorAll('[data-go]').forEach(b => {
   });
 });
 
+/* ==============================
+   MODEL MENU
+============================== */
+
 $('model-picker').addEventListener('click', () =>
   $('model-menu').classList.toggle('hidden')
 );
@@ -284,15 +441,33 @@ $('close-model-menu').addEventListener('click', () =>
   $('model-menu').classList.add('hidden')
 );
 
+/* ==============================
+   NEW CHAT
+============================== */
+
 $('new-chat').addEventListener('click', () => {
   state.messages = [];
+  state.currentConversationId = null;
+
   $('messages').innerHTML = '';
   $('chat-error').classList.add('hidden');
   $('suggestions').classList.remove('hidden');
   $('prompt').value = '';
+
+  renderHistory();
   switchTab('chat');
   $('prompt').focus();
 });
+
+/* ==============================
+   CLEAR CHAT HISTORY
+============================== */
+
+$('clear-history')?.addEventListener('click', clearHistory);
+
+/* ==============================
+   PROMPT INPUT
+============================== */
 
 $('prompt').addEventListener('input', () => {
   $('send-btn').disabled =
@@ -315,6 +490,10 @@ document.querySelectorAll('[data-prompt]').forEach(b => {
 });
 
 $('model-search').addEventListener('input', renderDiscover);
+
+/* ==============================
+   DISPLAY CHAT MESSAGES
+============================== */
 
 function addMessage(role, content, model) {
   const wrap = document.createElement('div');
@@ -344,6 +523,10 @@ function addMessage(role, content, model) {
   return wrap;
 }
 
+/* ==============================
+   CHAT SUBMISSION
+============================== */
+
 $('chat-form').addEventListener('submit', async e => {
   e.preventDefault();
 
@@ -360,6 +543,10 @@ $('chat-form').addEventListener('submit', async e => {
 
   state.messages.push({ role: 'user', content: prompt });
   addMessage('user', prompt);
+
+  // Save the user's message immediately.
+  // It remains saved even if the provider returns an error.
+  saveCurrentConversation();
 
   $('prompt').value = '';
   $('suggestions').classList.add('hidden');
@@ -397,7 +584,10 @@ $('chat-form').addEventListener('submit', async e => {
       throw Error(data.error || 'The model could not answer. Please try again.');
     }
 
-    state.messages.push({ role: 'assistant', content: data.content });
+    state.messages.push({
+      role: 'assistant',
+      content: data.content
+    });
 
     waiting.remove();
 
@@ -407,21 +597,30 @@ $('chat-form').addEventListener('submit', async e => {
       state.models.find(m => m.id === state.selected)?.name || state.selected
     );
 
-    saveWorkspace(prompt);
+    // Save the assistant's reply too.
+    saveCurrentConversation();
 
   } catch (err) {
     waiting.remove();
+
     $('chat-error').textContent =
       err.message || 'Could not connect to the model provider.';
+
     $('chat-error').classList.remove('hidden');
 
   } finally {
     state.busy = false;
+
     $('send-btn').disabled =
       !state.selected || !$('prompt').value.trim();
+
     $('prompt').focus();
   }
 });
+
+/* ==============================
+   TOOLS
+============================== */
 
 document.querySelectorAll('[data-tool]').forEach(b => {
   b.addEventListener('click', () => {
@@ -455,6 +654,11 @@ document.querySelectorAll('[data-tool]').forEach(b => {
   });
 });
 
+/* ==============================
+   START OMNIAI
+============================== */
+
+renderHistory();
 renderDashboard();
 loadModels();
 switchTab('dashboard');
